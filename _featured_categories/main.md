@@ -1,7 +1,7 @@
 ---
 layout: list
-title: Hydejack
-slug: hydejack
+title: Mr.Simple
+slug: Mr.Simple
 menu: true
 order: 1
 description: >

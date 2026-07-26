@@ -49,8 +49,8 @@ author:
 
 # Add links to the sidebar.
 menu:
-  - title:             Hydejack
-    url:               /hydejack/
+  - title:             Mr.Simple
+    url:               /main/
   - title:             Hyde
     url:               /hyde/
   - title:             Documentation
