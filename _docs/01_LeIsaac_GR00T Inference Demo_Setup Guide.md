@@ -33,13 +33,24 @@ A comprehensive guide to setting up a two-environment system for running policy 
 ```
 ### Demo
 
-<div style="background-color: #f0f0f0; padding: 8px; border-radius: 4px;">
-
-| LiftCube | PickOrange |
-|:--------:|:----------:|
-| <video src="/assets/video/groot_leisaac_cube.mp4" controls width="320" height="180"><br/>  Your browser does not support the video tag.<br/></video> | <video src="/assets/video/groot_leisaac_orange.mp4" controls width="320" height="180"><br/>  Your browser does not support the video tag.<br/></video> |
-
-</div>
+<table style="background-color: #f0f0f0; border-radius: 4px; width: 100%;">
+  <tr>
+    <th style="text-align: center; padding: 8px;">LiftCube</th>
+    <th style="text-align: center; padding: 8px;">PickOrange</th>
+  </tr>
+  <tr>
+    <td style="text-align: center; padding: 8px;">
+      <video src="/assets/video/groot_leisaac_cube.mp4" controls width="320" height="180">
+        Your browser does not support the video tag.
+      </video>
+    </td>
+    <td style="text-align: center; padding: 8px;">
+      <video src="/assets/video/groot_leisaac_orange.mp4" controls width="320" height="180">
+        Your browser does not support the video tag.
+      </video>
+    </td>
+  </tr>
+</table>
 
 
 ### Teacher-Student Recording Mode
