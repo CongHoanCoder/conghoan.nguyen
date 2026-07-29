@@ -13,6 +13,8 @@ A comprehensive guide to setting up a two-environment system for running policy 
 
 ## Architecture Overview
 
+
+
 ### Inference-Only Mode
 
 ```
@@ -29,6 +31,11 @@ A comprehensive guide to setting up a two-environment system for running policy 
 │  tcp://0.0.0.0:5555     │                           │  Connects as client          │
 └─────────────────────────┘                           └──────────────────────────────┘
 ```
+### Demo
+<video src="/assets/video/groot_leisaac_cube.mp4" controls width="640" height="360">
+  Your browser does not support the video tag.
+</video>
+
 
 ### Teacher-Student Recording Mode
 
