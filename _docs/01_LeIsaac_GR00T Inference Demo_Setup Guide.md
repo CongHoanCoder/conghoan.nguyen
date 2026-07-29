@@ -3,12 +3,7 @@ layout: doc
 title: LeIsaac + GR00T Inference Demo — Setup Guide
 description: >
   A comprehensive guide to setting up a two-environment system for running policy inference in IsaacLab using a GR00T N1.5 model served via a separate inference service.
-image:
-  path: /assets/img/blog/hydejack-8.png
-  srcset:
-    1x: /assets/img/blog/hydejack-8.png
-    2x: /assets/img/blog/hydejack-8@0,5x.png
-    4x: /assets/img/blog/hydejack-8@0,25x.png
+video: https://youtu.be/DSIHzQhY04Y
 hide_description: true
 ---
 
