@@ -72,9 +72,13 @@ copyright:             © 2018. All rights reserved.
 # Format of the permalinks
 permalink:             /:categories/:year-:month-:day-:title/
 
-# Pagination configuration (used by the `blog` layout)
-paginate:              10
-paginate_path:         /page-:num/
+# Pagination configuration
+pagination:
+  enabled:              true
+  per_page:             10
+  permalink:            /page/:num/
+
+
 
 
 # Customizaton
@@ -233,6 +237,10 @@ collections:
     permalink:         /tag-:name/
     output:            true
 
+  docs:
+    permalink:         /docs/:path/
+    output:            true
+
   projects:
     permalink:         /projects/:path/
     output:            true
@@ -265,7 +273,7 @@ plugins:
   - jekyll-default-layout
   - jekyll-feed
   - jekyll-optional-front-matter
-  - jekyll-paginate
+  - jekyll-paginate-v2
   - jekyll-readme-index
   - jekyll-redirect-from
   - jekyll-relative-links

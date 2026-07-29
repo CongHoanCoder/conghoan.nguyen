@@ -1,8 +1,9 @@
 ---
-layout: page
+layout: doc
 title: Basics
 description: >
   This chapter covers the basics of content creation with Hydejack.
+video: https://www.youtube.com/watch?v=ueSmN_VxNPg&list=PLlqdnFs9xNwql5KET7v7zyl393y10qxtw&index=4
 hide_description: true
 ---
 
@@ -23,7 +24,7 @@ To add a page, create a new markdown file and put `layout: page` in a front matt
 
 ~~~yml
 ---
-layout: page
+layout: doc
 title:  Documentation
 ---
 ~~~

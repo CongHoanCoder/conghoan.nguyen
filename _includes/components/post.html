@@ -23,12 +23,35 @@
     </p>
 
     {% assign alt = false %}
-    {% unless hide_image %}{% if post.image %}
-      <div class="img lead sixteen-nine">
-        {% include components/hy-img.html img=post.image alt=post.title %}
-      </div>
-      {% assign alt = '' %}
-    {% endif %}{% endunless %}
+    {% unless hide_image %}
+      {% if post.video %}
+        {% assign yt_id = post.video %}
+        {% if yt_id contains 'youtu.be' %}
+          {% assign yt_id = yt_id | split: '/' | last | split: '?' | first %}
+        {% elsif yt_id contains 'watch' %}
+          {% assign yt_id = yt_id | split: 'v=' | last | split: '&' | first %}
+        {% elsif yt_id contains 'embed' %}
+          {% assign yt_id = yt_id | split: 'embed/' | last | split: '?' | first %}
+        {% endif %}
+        <div class="youtube-embed">
+          <iframe src="https://www.youtube-nocookie.com/embed/{{ yt_id }}" frameborder="0" allow="encrypted-media" allowfullscreen></iframe>
+        </div>
+      {% else %}
+        {% assign card_img = false %}
+        {% if post.image %}
+          {% if post.image.path %}
+            {% assign card_img = post.image %}
+          {% elsif post.image != '' %}
+            {% assign card_img = post.image %}
+          {% endif %}
+        {% endif %}
+        {% if card_img %}
+          <div class="img lead sixteen-nine">
+            {% include components/hy-img.html img=card_img alt=post.title %}
+          </div>
+        {% endif %}
+      {% endif %}
+    {% endunless %}
 
     {% include components/message.html text=post.description hide=page.hide_description alt=alt %}
   </header>

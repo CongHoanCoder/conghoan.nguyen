@@ -1,10 +1,13 @@
 ---
-layout: page
+layout: doc
 title: Writing
 description: >
   Hydejack offers a few additional features to markup your content.
   Don't worry, these are merely CSS classes added with kramdown's `{:...}` syntax,
   so that your content remains compatible with other Jekyll themes.
+image:
+  path: /assets/img/blog/lazy-images.jpg
+video: https://youtu.be/lazy-images
 hide_description: true
 ---
 

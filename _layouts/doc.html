@@ -1,0 +1,38 @@
+---
+layout: page
+---
+
+{% include components/back-link.html %}
+
+{% assign page_img = false %}
+{% if page.image %}
+  {% if page.image.path %}
+    {% assign page_img = page.image %}
+  {% elsif page.image != '' %}
+    {% assign page_img = page.image %}
+  {% endif %}
+{% endif %}
+
+{% if page_img %}
+  <figure style="margin: 0 0 2rem;">
+    {% include components/hy-img.html img=page_img alt=page.title %}
+  </figure>
+{% endif %}
+
+{% if page.video %}
+  {% assign yt = page.video %}
+  {% if yt contains 'youtu.be' %}
+    {% assign yt_id = yt | split: '/' | last | split: '?' | first %}
+  {% elsif yt contains 'watch' %}
+    {% assign yt_id = yt | split: 'v=' | last | split: '&' | first %}
+  {% elsif yt contains 'embed' %}
+    {% assign yt_id = yt | split: 'embed/' | last | split: '?' | first %}
+  {% else %}
+    {% assign yt_id = yt %}
+  {% endif %}
+  <div class="youtube-embed">
+    <iframe src="https://www.youtube-nocookie.com/embed/{{ yt_id }}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+  </div>
+{% endif %}
+
+{{ content }}

@@ -1,10 +1,15 @@
 ---
-layout: page
+layout: doc
 title: Install
 description: >
   There are multiple ways of installing Hydejack.
   The easiest and cleanest way is via the Starter Kit.
   Alternatively, you can use the Ruby gem.
+image:
+  path: /assets/img/blog/cover-page.jpg
+  srcset:
+    1x: /assets/img/blog/cover-page.jpg
+    2x: /assets/img/blog/cover-page.jpg
 hide_description: true
 ---
 

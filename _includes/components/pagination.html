@@ -1,15 +1,57 @@
 <h2 class="sr-only">{{ site.data.strings.pagination | default:"Pagination" }}</h2>
 <nav class="pagination heading clearfix" role="navigation">
   <ul>
-    <li class="pagination-item older" >
-      {% assign next_title = site.data.strings.older | default:"Older" %}
-      {% assign next_href = paginator.next_page_path | relative_url %}
-      {% include components/link.html rel="next" title=next_title href=next_href %}
+    <li class="pagination-item newer">
+      {% if paginator.previous_page_path %}
+        <a href="{{ paginator.previous_page_path | relative_url }}" rel="prev">{{ site.data.strings.newer | default:"Newer" }}</a>
+      {% else %}
+        <span class="disabled">{{ site.data.strings.newer | default:"Newer" }}</span>
+      {% endif %}
     </li>
-    <li class="pagination-item newer" >
-      {% assign prev_title = site.data.strings.newer | default:"Newer" %}
-      {% assign prev_href = paginator.previous_page_path | relative_url %}
-      {% include components/link.html rel="prev" title=prev_title href=prev_href %}
+
+    {% if paginator.total_pages > 1 %}
+      {% assign trail = paginator.page_trail %}
+      {% assign total = paginator.total_pages %}
+      {% assign total_minus_one = total | minus: 1 %}
+
+      {% assign clean_first = paginator.first_page_path | relative_url | replace: 'index.html', '' %}
+      {% assign clean_last = paginator.last_page_path | relative_url | replace: 'index.html', '' %}
+
+      {% if trail.first.num > 1 %}
+        <li class="pagination-item page-number">
+          <a href="{{ clean_first }}">1</a>
+        </li>
+        {% if trail.first.num > 2 %}
+          <li class="pagination-item page-number ellipsis"><span>&hellip;</span></li>
+        {% endif %}
+      {% endif %}
+
+      {% for pg in trail %}
+        <li class="pagination-item page-number">
+          {% if pg.num == paginator.page %}
+            <span class="active">{{ pg.num }}</span>
+          {% else %}
+            <a href="{{ pg.path | relative_url | replace: 'index.html', '' }}">{{ pg.num }}</a>
+          {% endif %}
+        </li>
+      {% endfor %}
+
+      {% if trail.last.num < total %}
+        {% if trail.last.num < total_minus_one %}
+          <li class="pagination-item page-number ellipsis"><span>&hellip;</span></li>
+        {% endif %}
+        <li class="pagination-item page-number">
+          <a href="{{ clean_last }}">{{ total }}</a>
+        </li>
+      {% endif %}
+    {% endif %}
+
+    <li class="pagination-item older">
+      {% if paginator.next_page_path %}
+        <a href="{{ paginator.next_page_path | relative_url }}" rel="next">{{ site.data.strings.older | default:"Older" }}</a>
+      {% else %}
+        <span class="disabled">{{ site.data.strings.older | default:"Older" }}</span>
+      {% endif %}
     </li>
   </ul>
 </nav>

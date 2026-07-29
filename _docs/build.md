@@ -1,8 +1,14 @@
 ---
-layout: page
+layout: doc
 title: Build
 description: >
   This chapters shows how to prepare your Hydejack site for a production build and deployment on 3rd party hosting providers.
+image:
+  path: /assets/img/blog/hydejack-8.png
+  srcset:
+    1x: /assets/img/blog/hydejack-8.png
+    2x: /assets/img/blog/hydejack-8@0,5x.png
+    4x: /assets/img/blog/hydejack-8@0,25x.png
 hide_description: true
 ---
 

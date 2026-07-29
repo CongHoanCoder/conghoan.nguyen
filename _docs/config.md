@@ -1,8 +1,10 @@
 ---
-layout: page
+layout: doc
 title: Config
 description: >
   This chapter covers the many configuration options of Hydejack, allowing you to tailor it to your needs.
+image:
+  path: /assets/img/docs/google-fonts.png
 hide_description: true
 ---
 

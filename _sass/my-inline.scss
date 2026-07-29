@@ -1,16 +1,80 @@
-// Uncomment below to remove border radius on projects and pagination items (pre v6.5)
-/*
-.card, .pagination-item {
-  border-radius: 0!important;
-}
-*/
+.pagination {
+  width: auto;
+  margin: 3rem 0;
 
-// Uncomment below to restore the old (pre v6.5) sidebar
-/*
-@media screen {
-  .sidebar-sticky {
-    left: 2rem;
-    max-width: none;
+  > ul {
+    display: flex !important;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: .25rem;
+    list-style: none;
+    padding: 0;
   }
 }
-*/
+
+.pagination-item {
+  > * {
+    float: none !important;
+    width: auto !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 .5rem;
+    border: 1px solid var(--border-color);
+    border-radius: .25rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: border-color 1s ease, background-color .2s ease;
+    font-size: .875rem;
+  }
+
+  > a:hover, > a:focus {
+    background-color: var(--gray-bg);
+    border-color: var(--border-color);
+  }
+
+  &:first-child > *,
+  &:last-child > * {
+    margin-bottom: 0;
+    margin-left: 0;
+    border-radius: .25rem;
+  }
+
+  &.page-number > .active {
+    background-color: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
+  }
+
+  &.ellipsis > * {
+    border: none;
+    min-width: auto;
+    padding: 0 .125rem;
+    background: transparent;
+  }
+
+  &.newer > .disabled,
+  &.older > .disabled {
+    opacity: .4;
+    cursor: default;
+    pointer-events: none;
+  }
+}
+
+.youtube-embed {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  margin-bottom: 2rem;
+
+  iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+}

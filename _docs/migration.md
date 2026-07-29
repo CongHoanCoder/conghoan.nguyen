@@ -1,5 +1,5 @@
 ---
-layout: page
+layout: doc
 title: Migration
 description: >
   This documents shows how to upgrade Hydejack from previous versions (v5) in a step-by-step manner.
