@@ -7,7 +7,6 @@ hide_description: true
 ---
 
 This chapter covers advanced topics, such as offline support and custom JS builds. Codings skills are recommended.
-
 ## Prerequisites
 
 - Linux (Ubuntu 22.04+)
@@ -102,77 +101,74 @@ docker exec "$ARENA_CONTAINER" su $(id -un) -c \
 
 ---
 
-## 5. GR00T Policy Evaluation Demo (two-container setup)
+## 5. GR00T Inference Demo in Isaac Sim (server-client)
 
-This demo runs a finetuned GR00T N1.7 policy to control a Unitree G1 robot in the static apple-to-plate task using Arena's **server-client architecture**. Two Docker containers are used:
+This demo runs a finetuned GR00T N1.6 policy to control a Unitree G1 humanoid robot in the Galileo lab locomanipulation task (pick a box from a shelf and place it in a bin). It uses a **server-client architecture**:
 
-- **Container 1 (GR00T Server)**: Loads the GR00T N1.7 checkpoint and serves inference over ZeroMQ on port 5555.
-- **Container 2 (Arena Client)**: Runs Isaac Sim with the G1 environment. It connects to the server over ZeroMQ to request actions — no GR00T model dependencies inside this container.
+- **Terminal 1 (GR00T Server, host)**: Loads the GR00T N1.6 checkpoint and serves inference over ZeroMQ on port 5555. Runs in a conda environment outside Docker.
+- **Terminal 2 (Arena Client, Docker container)**: Runs Isaac Sim with the G1 environment, connects to the server, and renders the GUI via `--viz kit`.
 
 No teleoperation data collection or policy training is required. A pre-trained checkpoint is downloaded from HuggingFace.
 
 ### Requirements
 
 - All [prerequisites](#prerequisites) satisfied (NVIDIA driver, Docker + container toolkit)
-- ~25 GB free disk space for the two Docker images + checkpoint
-- `huggingface-cli` on the host:
+- Conda (Miniconda / Anaconda) on the host
+- ~15 GB free disk space for the checkpoint + Docker image
 
-  ```bash
-  pip install huggingface-hub[cli]
-  ```
-
-### 5.1 Build the GR00T server image
-
-The Arena client image (`isaaclab_arena:latest`) is built automatically by `./docker/run_docker.sh` — you do not need to build it separately.
+### 5.1 Set up the GR00T conda environment (host)
 
 ```bash
-# From the repo root
-cd /path/to/IsaacLab-Arena
+# Create and activate a dedicated conda env
+conda create -n gr00t_server python=3.10 -y
+conda activate gr00t_server
 
-# GR00T server image (PyTorch 25.04 + Isaac-GR00T) — ~5-10 min
-docker build -t isaaclab_arena-gr00t-server:latest -f docker/Dockerfile.gr00t_server .
+# Install PyTorch (match your CUDA version, e.g. cu124)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+
+# Install GR00T package in editable mode
+cd submodules/Isaac-GR00T
+pip install -e . --no-build-isolation
+```
+
+If `flash-attn` fails to build, install it manually after PyTorch:
+
+```bash
+pip install flash-attn==2.7.4.post1 --no-build-isolation
 ```
 
 ### 5.2 Download the pre-trained checkpoint
 
 ```bash
-export MODELS_DIR=~/models/isaaclab_arena/static_apple_tutorial
-export MODEL_PATH=$MODELS_DIR/gn1x_tuned_static_apple
-mkdir -p "$MODEL_PATH"
+export MODELS_DIR=~/models/isaaclab_arena/locomanipulation_tutorial
+mkdir -p $MODELS_DIR/checkpoint-20000
 
 huggingface-cli download \
-   nvidia/GN1x-Tuned-Arena-G1-Static-PickNPlace \
-   --repo-type model \
-   --local-dir "$MODEL_PATH"
+   --revision gn1_6 \
+   nvidia/GN1x-Tuned-Arena-G1-Loco-Manipulation \
+   --local-dir $MODELS_DIR/checkpoint-20000
 ```
 
-### 5.3 Start the GR00T server container
+### 5.3 Start the GR00T server (Terminal 1, host)
 
 ```bash
-docker run -d --gpus all --network host --name gr00t-server \
-  -v ~/models:/models:ro \
-  -v /path/to/IsaacLab-Arena/isaaclab_arena_gr00t/embodiments:/arena_embodiments:ro \
-  isaaclab_arena-gr00t-server:latest \
-  uv run python gr00t/eval/run_gr00t_server.py \
-    --modality-config-path /arena_embodiments/g1/g1_sim_wbc_data_gr00t_n_1_7_config.py \
-    --model-path /models/isaaclab_arena/static_apple_tutorial/gn1x_tuned_static_apple \
+cd submodules/Isaac-GR00T
+conda activate gr00t_server
+
+python gr00t/eval/run_gr00t_server.py \
+    --modality-config-path /absolute/path/to/IsaacLab-Arena/isaaclab_arena_gr00t/embodiments/g1/g1_sim_wbc_data_config.py \
+    --model-path ~/models/isaaclab_arena/locomanipulation_tutorial/checkpoint-20000 \
     --embodiment-tag NEW_EMBODIMENT \
     --device cuda \
     --host 0.0.0.0 \
     --port 5555
 ```
 
-Check the server is ready:
+Wait for: `Server Ready and listening on 0.0.0.0:5555`
 
-```bash
-docker logs gr00t-server
-```
+Replace `/absolute/path/to/IsaacLab-Arena` with the absolute path to your Arena clone.
 
-Expected output: `Server Ready and listening on 0.0.0.0:5555`
-
-> **Note**: If you are using a custom checkpoint (from your own training), replace `gn1x_tuned_static_apple` with your checkpoint directory name.
-
-### 5.4 Start the Arena client container
+### 5.4 Start the Arena client with GUI (Terminal 2, Docker)
 
 In a **second terminal** on the same machine:
 
@@ -181,29 +177,30 @@ cd /path/to/IsaacLab-Arena
 ./docker/run_docker.sh
 ```
 
-Inside the container, run the policy evaluation with GUI:
+Inside the container, run the policy evaluation with the Isaac Sim GUI:
 
 ```bash
 /isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
    --viz kit \
    --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
-   --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_static_apple_gr00t_closedloop_config.yaml \
-   --remote_host localhost --remote_port 5555 \
-   --num_steps 600 \
+   --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_locomanip_gr00t_closedloop_config.yaml \
+   --remote_host 127.0.0.1 --remote_port 5555 \
+   --num_steps 1500 \
    --enable_cameras \
-   galileo_g1_static_pick_and_place \
-   --object apple_01_objaverse_robolab \
-   --destination clay_plates_hot3d_robolab \
-   --embodiment g1_wbc_agile_joint
+   galileo_g1_locomanip_pick_and_place \
+   --object brown_box \
+   --embodiment g1_wbc_joint
 ```
 
-The Isaac Sim GUI will appear showing the G1 robot in the Galileo lab scene. The GR00T policy controls the robot to pick the apple and place it on the plate.
+The Isaac Sim GUI window will appear showing the G1 robot in the Galileo lab scene. The GR00T policy controls the robot to pick the brown box from the shelf and place it in the blue bin.
 
 Expected console output at the end of the evaluation:
 
 ```
-[Rank 0/1] Metrics: {'success_rate': 1.0, 'object_moved_rate': 1.0, 'num_episodes': 1}
+[Rank 0/1] Metrics: {'success_rate': 1.0, 'num_episodes': 1}
 ```
+
+> **First run**: The scene assets (Galileo lab, G1 robot, objects) download from Omniverse on first launch. This takes a few minutes and may show `[omni.client.python] Detected a blocking function` warnings — this is normal. Assets are cached to `/tmp/Assets/` for subsequent runs.
 
 ### 5.5 Running headless (no GUI)
 
@@ -213,49 +210,29 @@ Replace `--viz kit` with `--viz headless`:
 /isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
    --viz headless \
    --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
-   --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_static_apple_gr00t_closedloop_config.yaml \
-   --remote_host localhost --remote_port 5555 \
-   --num_steps 600 \
+   --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_locomanip_gr00t_closedloop_config.yaml \
+   --remote_host 127.0.0.1 --remote_port 5555 \
+   --num_steps 1500 \
    --enable_cameras \
-   galileo_g1_static_pick_and_place \
-   --object apple_01_objaverse_robolab \
-   --destination clay_plates_hot3d_robolab \
-   --embodiment g1_wbc_agile_joint
+   galileo_g1_locomanip_pick_and_place \
+   --object brown_box \
+   --embodiment g1_wbc_joint
 ```
 
-### 5.6 Running with parallel environments
+### 5.6 Cleanup
 
 ```bash
-/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
-   --viz kit \
-   --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
-   --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_static_apple_gr00t_closedloop_config.yaml \
-   --remote_host localhost --remote_port 5555 \
-   --num_steps 600 \
-   --num_envs 5 \
-   --enable_cameras \
-   galileo_g1_static_pick_and_place \
-   --object apple_01_objaverse_robolab \
-   --destination clay_plates_hot3d_robolab \
-   --embodiment g1_wbc_agile_joint
+# Terminal 1: Stop the server (Ctrl+C)
+conda deactivate
+
+# Terminal 2: Exit the container (type 'exit')
 ```
-
-### 5.7 Cleanup
-
-Stop and remove the GR00T server container:
-
-```bash
-docker stop gr00t-server && docker rm gr00t-server
-```
-
-Exit the Arena container by typing `exit`.
 
 ### Troubleshooting
 
 | Symptom | Likely cause | Fix |
-|---------|-------------|-----|
-| `ConnectionError: Cannot reach GR00T policy server` | Server not ready yet | Wait for `Server Ready` in server logs. Check `docker logs gr00t-server`. |
-| `ValueError: Invalid action shape, expected: 23, received: 50.` | Client uses wrong embodiment | Ensure `--embodiment g1_wbc_agile_joint` (not `_pink`). |
-| `FileNotFoundError: Model path ... does not exist` | Model volume mount path mismatch | Check `-v` mount matches `--model-path` inside container. |
-| Apple falls through shelf on first run | Collision mesh cache not ready | Re-run the command once (cached in `/tmp/Assets/`). |
-| Kit permission errors on `/isaac-sim/kit/data/` | Stale state from previous run | Rebuild the Arena image or start from a clean container. |
+|---------|-------------|------|
+| `ValueError: The checkpoint...model type Gr00tN1d7` | Checkpoint is GR00T N1.7 but submodule only supports N1.6 | Use the N1.6 checkpoint (`--revision gn1_6` on `GN1x-Tuned-Arena-G1-Loco-Manipulation`) |
+| `shape mismatch: [50, 50] cannot be broadcast to [1, 40, 50]` | Action horizon mismatch between server modality config and client YAML | Ensure server uses `g1_sim_wbc_data_config.py` (horizon 50) and client uses `g1_locomanip_gr00t_closedloop_config.yaml` (horizon 50) |
+| `ConnectionError: Cannot reach GR00T policy server` | Server not ready yet | Wait for `Server Ready` in server logs |
+| GUI shows empty grid / assets not loading | First-time Omniverse asset download in progress | Wait 5-10 minutes; assets cache to `/tmp/Assets/` for next time |
