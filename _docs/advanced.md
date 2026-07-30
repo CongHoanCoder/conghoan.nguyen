@@ -8,7 +8,6 @@ hide_description: true
 
 This chapter covers advanced topics, such as offline support and custom JS builds. Codings skills are recommended.
 
-
 ## Prerequisites
 
 - Linux (Ubuntu 22.04+)
@@ -36,7 +35,6 @@ This builds the Docker image (`isaaclab_arena:latest`) on first run, then starts
 
 | Flag | Purpose |
 |------|---------|
-| `-g` | Include GR00T policy dependencies |
 | `-c` | Include cuRobo (compiles CUDA, adds ~10 min) |
 | `-r` | Force rebuild the image |
 | `-R` | Force rebuild without cache |
@@ -50,9 +48,6 @@ This builds the Docker image (`isaaclab_arena:latest`) on first run, then starts
 ```bash
 # Base (recommended for development)
 ./docker/run_docker.sh
-
-# With GR00T dependencies
-./docker/run_docker.sh -g
 
 # Custom mounts + rebuild
 ./docker/run_docker.sh -r -d ~/my_datasets -m ~/my_models
@@ -126,14 +121,13 @@ No teleoperation data collection or policy training is required. A pre-trained c
   pip install huggingface-hub[cli]
   ```
 
-### 5.1 Build both Docker images
+### 5.1 Build the GR00T server image
+
+The Arena client image (`isaaclab_arena:latest`) is built automatically by `./docker/run_docker.sh` — you do not need to build it separately.
 
 ```bash
 # From the repo root
 cd /path/to/IsaacLab-Arena
-
-# Arena client image (Isaac Sim 6.0.1 + Isaac Lab + Arena) — ~20 min
-docker build -t isaaclab_arena:latest -f docker/Dockerfile.isaaclab_arena .
 
 # GR00T server image (PyTorch 25.04 + Isaac-GR00T) — ~5-10 min
 docker build -t isaaclab_arena-gr00t-server:latest -f docker/Dockerfile.gr00t_server .
