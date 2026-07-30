@@ -1,6 +1,6 @@
 ---
 layout: doc
-title: Advanced
+title: Setup Guide — Isaac Lab-Arena (Docker)
 description: >
   This chapter covers advanced topics, such as offline support and custom JS builds. Codings skills are recommended.
 hide_description: true
@@ -8,222 +8,260 @@ hide_description: true
 
 This chapter covers advanced topics, such as offline support and custom JS builds. Codings skills are recommended.
 
-## Table of Contents
-{:.no_toc}
-0. this unordered seed list will be replaced by toc as unordered list
-{:toc}
 
-## Enabling offline support
-Hydejack v8 introduces experimental "cache as you go" offline support. This is implemented via the [Service Worker API](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API), a new browser standard that is now supported in the latest versions of all major browsers. However, it is a very powerful feature and should be used with a lot of care.
+## Prerequisites
 
-Enabling this feature requires that your content meets the following criteria:
+- Linux (Ubuntu 22.04+)
+- NVIDIA GPU with [supported driver](https://docs.isaacsim.omniverse.nvidia.com/6.0.0/installation/requirements.html)
+- Docker + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+- Git
 
-* Content doesn't change between between deploys (e.g. manually adding things to `_site` etc.)
-* All assets in `assets` are immutable, i.e. they never change (when changing a file in assets, it needs to have a new name and links need to point to the new file).
-* The site is mostly self-contained, i.e. assets are served from the same domain (offline support will not download assets form external sites by default)
-* The site is served via HTTPS (this is a Service Worker requirement)
+## 1. Clone with submodules
 
-To enable this feature, create the [`sw.js`][sw] file in the root of your project and add the following content:
+```bash
+git clone git@github.com:isaac-sim/IsaacLab-Arena.git
+cd IsaacLab-Arena
+git submodule update --init --recursive
+```
 
-```js
+## 2. Start the container
+
+```bash
+./docker/run_docker.sh
+```
+
+This builds the Docker image (`isaaclab_arena:latest`) on first run, then starts and attaches to the container. Idempotent — subsequent runs just attach.
+
+### Common flags
+
+| Flag | Purpose |
+|------|---------|
+| `-g` | Include GR00T policy dependencies |
+| `-c` | Include cuRobo (compiles CUDA, adds ~10 min) |
+| `-r` | Force rebuild the image |
+| `-R` | Force rebuild without cache |
+| `-d <path>` | Mount custom dataset directory (default: `~/datasets`) |
+| `-m <path>` | Mount custom models directory (default: `~/models`) |
+| `-e <path>` | Mount custom eval directory (default: `~/eval`) |
+| `-s <suffix>` | Container name suffix (for parallel clones) |
+
+### Examples
+
+```bash
+# Base (recommended for development)
+./docker/run_docker.sh
+
+# With GR00T dependencies
+./docker/run_docker.sh -g
+
+# Custom mounts + rebuild
+./docker/run_docker.sh -r -d ~/my_datasets -m ~/my_models
+```
+
+## 3. Verify
+
+Inside the container (already attached), or from outside:
+
+```bash
+# From inside the attached container:
+/isaac-sim/python.sh -c 'import isaaclab_arena; print(isaaclab_arena.__file__)'
+
+# From outside (find your container first):
+ARENA_CONTAINER=$(docker ps --filter "volume=$(pwd)" --format '{{.Names}}' | head -1)
+docker exec "$ARENA_CONTAINER" su $(id -un) -c \
+  "/isaac-sim/python.sh -c 'import isaaclab_arena; print(isaaclab_arena.__file__)'"
+```
+
+Expected output: a path under `/workspaces/isaaclab_arena/`.
+
+## 4. Run a test rollout
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+  --policy_type zero_action --num_steps 20 cube_goal_pose
+```
+
+Optional GUI visualizer:
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+  --viz kit --policy_type zero_action --num_steps 200 cube_goal_pose
+```
+
+## Running commands from outside the container
+
+```bash
+ARENA_CONTAINER=$(docker ps --filter "volume=$(pwd)" --format '{{.Names}}' | head -1)
+docker exec "$ARENA_CONTAINER" su $(id -un) -c \
+  "cd /workspaces/isaaclab_arena && /isaac-sim/python.sh your_script.py"
+```
+
+**Important:** Inside `docker exec`, always use `/isaac-sim/python.sh` explicitly — the `python` alias is not available outside the container.
+
+## Container management
+
+- Each repo clone gets its own container (name derived from directory name).
+- Running `./docker/run_docker.sh` again re-attaches to the existing container.
+- To stop: `exit` from the attached shell, or `docker kill <container-name>`.
+- One container per clone — parallel clones run independently.
+
 ---
----
-importScripts("{\{ '/assets/js/sw.js' | relative_url }\}?t={\{ site.time | date_to_xmlschema }\}");
+
+## 5. GR00T Policy Evaluation Demo (two-container setup)
+
+This demo runs a finetuned GR00T N1.7 policy to control a Unitree G1 robot in the static apple-to-plate task using Arena's **server-client architecture**. Two Docker containers are used:
+
+- **Container 1 (GR00T Server)**: Loads the GR00T N1.7 checkpoint and serves inference over ZeroMQ on port 5555.
+- **Container 2 (Arena Client)**: Runs Isaac Sim with the G1 environment. It connects to the server over ZeroMQ to request actions — no GR00T model dependencies inside this container.
+
+No teleoperation data collection or policy training is required. A pre-trained checkpoint is downloaded from HuggingFace.
+
+### Requirements
+
+- All [prerequisites](#prerequisites) satisfied (NVIDIA driver, Docker + container toolkit)
+- ~25 GB free disk space for the two Docker images + checkpoint
+- `huggingface-cli` on the host:
+
+  ```bash
+  pip install huggingface-hub[cli]
+  ```
+
+### 5.1 Build both Docker images
+
+```bash
+# From the repo root
+cd /path/to/IsaacLab-Arena
+
+# Arena client image (Isaac Sim 6.0.1 + Isaac Lab + Arena) — ~20 min
+docker build -t isaaclab_arena:latest -f docker/Dockerfile.isaaclab_arena .
+
+# GR00T server image (PyTorch 25.04 + Isaac-GR00T) — ~5-10 min
+docker build -t isaaclab_arena-gr00t-server:latest -f docker/Dockerfile.gr00t_server .
 ```
 
-**NOTE**: You have to remove the `\` after each `{` and before each `}`! Alternatively, you can just copy the file from [here][sw].
-{:.message}
+### 5.2 Download the pre-trained checkpoint
 
-[sw]: https://github.com/hydecorp/hydejack/blob/v8/sw.js
+```bash
+export MODELS_DIR=~/models/isaaclab_arena/static_apple_tutorial
+export MODEL_PATH=$MODELS_DIR/gn1x_tuned_static_apple
+mkdir -p "$MODEL_PATH"
 
-This will load the main service worker script from Hydejack's assets. The `site.time` part is necessary to make the service worker "byte different" every time you create a new build of your site, which triggers an update.
-
-In your `config.yml` under the `hydejack` key, add the following:
-
-```yml
-offline:
-  enabled: true
-  cache_version: 1
+huggingface-cli download \
+   nvidia/GN1x-Tuned-Arena-G1-Static-PickNPlace \
+   --repo-type model \
+   --local-dir "$MODEL_PATH"
 ```
 
-The current implementation does not cache resources from external domains. There is now way of knowing if external sites conform to the conditions mentioned above, hence caching can be problematic and result in unexpected behavior.
+### 5.3 Start the GR00T server container
 
-For example, Google Analytics uses GET requests to send page views, each of which would be cached by the service worker without this policy. Frequently updating images, such as badges would never change.
-
-![Gem Version][gemv]{:data-ignore=""}
-
-However, if you include resources that are hosted on another domain and don't change, you can add the `sw-cache` query parameter to the URL, e.g.
-
-    https://upload.wikimedia.org/wikipedia/commons/b/b1/57_Chevy_210.jpg?sw-cache
-
-This will cause them to be cached like resources from the assets folder.
-
-![57 Chevy](https://upload.wikimedia.org/wikipedia/commons/b/b1/57_Chevy_210.jpg?sw-cache)
-
-[gemv]: https://badge.fury.io/rb/jekyll-theme-hydejack.svg
-
-
-### How offline storage works
-
-Hydejack's custom service worker implementation stores files for offline use on three different levels:
-
-Shell
-: The shell files are the core Hydejack files (CSS, JS) that only change between version updates.
-  If you made changes to any of these after enabling offline support, you must force an update by bumping the `cache_version` number in the config file.
-
-Assets
-: *These are presumed to be immutable.* In other words, every file is cached indefinitely. E.g.: If you want to update an image after enabling offline support, add the image under a different name and change the link in the content. Alternatively, you can bump the `cache_version`, but this will remove all other cached files from the asset cache.
-
-Content
-: The content cache exploits the fact that your content can't change between builds, so that it can be stored for offline use until you upload a new build. For now, the entire content cache is discarded every time you publish new content (future versions could cache them based on last modified dates).
-
-Other things to note are that the implementation will always cache the pages listed under `legal`, as well as the `404.html` page, which will be shown when the user is offline.
-
-
-## Adding a custom social media icon
-Hydejack includes a number of social media icons by default (in fact, everything that is provided by [IcoMoon](https://icomoon.io/)), but since the landscape is always changing, it is likely that a platform that is important to you will be missing at some point.
-
-**NOTE**: You can add any platform by simply providing a complete URL. However, a fallback icon <span class="icon-link"></span> will be used.
-{:.message}
-
-### Creating the icon font
-In order to add a custom social media icon you have to use the [IcoMoon App](https://icomoon.io/app/) (free) to create a custom icon webfont. However, it is important that the generated font include all icons already in use by Hydejack. For this purpose, find the `selection.json` in [`assets/icomoon/selection.json`](https://github.com/hydecorp/hydejack/blob/v6/assets/icomoon/selection.json) and upload it to the app via "Import Icons".
-Then, use the app to add your icon(s).
-Consult the [IcoMoon docs](https://icomoon.io/#docs) for additional help.
-
-Once you've created and downloaded the icon font form IconMoon, replace the `icomoon` folder in `assets` in its entirety. Keep in mind that future updates of Hydejack will override this folder.
-
-### Adding the platform's metadata
-For the second step it is necessary to add the network's metadata to `_data/social.yml`.
-An entry looks like:
-
-~~~yml
-deviantart:
-  name: DeviantArt
-  icon: icon-deviantart
-  prepend: "https://"
-  append: ".deviantart.com"
-~~~
-
-`name`
-: The name of the network. Used for for the title attribute and screen readers.
-
-`icon`
-: The icon CSS class. Can be chosen during the IcoMoon creation process.
-
-`prepend`
-: Optional. A string that is prepended to the username to form the link to the profile. If the final URL should be `https://<username>.deviantart.com`, this would be `https://`
-
-`append`
-: Optional. A string that is appended to the username to form the link to the profile. If the final URL should be `https://<username>.deviantart.com`, this would be `.deviantart.com`.
-
-
-## How CSS is organized in Hydejack
-Hydejack takes a quite unique approach to CSS, which is motivated by the ability to
-inline essential CSS rules in a `style` tag in the `<head/>` of a page (to increase the loading speed),
-while serving the rest in a separate file.
-
-The styles are written in SCSS and are located in the `_sass` folder, which looks like
-
-~~~
-├── hydejack
-│   ├── __inline__
-│   ├── __link__
-│   ├── _base.pre.scss
-│   ├── ...
-│   └── _social.pre.scss
-├── pooleparty
-│   ├── __inline__
-│   ├── __link__
-│   ├── _base.pre.scss
-│   ├── ...
-│   └── _type.pre.scss
-├── mixins.scss
-├── my-inline.scss
-├── my-style.scss
-├── syntax.scss
-└── variables.scss
-~~~
-
-The style rules are organized alongside components (or rather, topics) like "sidebar" and "footer".
-Further, there are two separate frameworks, "pooleparty" and "hydejack",
-which grew out of the original [Poole](http://getpoole.com/) and [Hyde](http://hyde.getpoole.com/) projects.
-Poole/party contains more general style rules, while Hyde/jack contains those that more are specific to the theme.
-However, this separation has blurred over time.
-
-Inside those folders, you will notice the `__inline__` and `__link__` folders.
-The unfriendly names are intentional, because their contents are generated by a script and shouldn't be modified directly.
-The source files are located in the same folder and end with `.pre.scss`.
-They are fully valid SCSS files, but contain comments that mark which lines should be inlined and which should be fetched asynchronously.
-
-The rules are as follows:
-* Every line between `// <<< inline ` and `// >>>` will be inlined
-* Every line between `// <<< link ` and `// >>>` will be linked
-* Every line that isn't contained in a block and ends with `// inline` will be inlined
-* Every line that isn't contained in a block and ends with `// link` will be linked
-* Every line for which none of the above applies will be included in both.
-
-The actual splitting happen with the `_scripts/build-css.sh` script (requires node.js 8+).
-You can run the script once by using
-
-~~~bash
-$ npm run build:css
-~~~
-
-or rebuild the CSS on every file change
-
-~~~bash
-$ npm run watch:css
-~~~
-
-Note that `my-inline.scss` and `my-style.scss` are not affected by this.
-Also, since all files are valid SCSS, the splitting part is entirely optional.
-If you would like to build just one regular CSS file, add
-
-```yml
-hydejack:
-  no_inline_css: true
+```bash
+docker run -d --gpus all --network host --name gr00t-server \
+  -v ~/models:/models:ro \
+  -v /path/to/IsaacLab-Arena/isaaclab_arena_gr00t/embodiments:/arena_embodiments:ro \
+  isaaclab_arena-gr00t-server:latest \
+  uv run python gr00t/eval/run_gr00t_server.py \
+    --modality-config-path /arena_embodiments/g1/g1_sim_wbc_data_gr00t_n_1_7_config.py \
+    --model-path /models/isaaclab_arena/static_apple_tutorial/gn1x_tuned_static_apple \
+    --embodiment-tag NEW_EMBODIMENT \
+    --device cuda \
+    --host 0.0.0.0 \
+    --port 5555
 ```
 
-to your config file.
+Check the server is ready:
 
+```bash
+docker logs gr00t-server
+```
 
-## Building the JavaScript
-In order to build the JavaScript you need to have [node.js](https://nodejs.org/en/) installed. Specifically, the `npm` command needs to be available, which is part of node.js.
+Expected output: `Server Ready and listening on 0.0.0.0:5555`
 
-**NOTE**: Building the JavaScript is optional! Hydejack comes with a pre-built, minified `hydejack.js` file
-that you can find in part of the theme's `assets`.
-{:.message}
+> **Note**: If you are using a custom checkpoint (from your own training), replace `gn1x_tuned_static_apple` with your checkpoint directory name.
 
-Before you start, make sure you've copied the following files:
-* `_js/`
-* `package.json`
-* `package-lock.json`
-* `.babelrc`
-* `.eslintignore`
-* `.eslintrc`
+### 5.4 Start the Arena client container
 
-When building for the first time (and after each update of Hydejack) you have to run
+In a **second terminal** on the same machine:
 
-~~~bash
-$ npm install
-~~~
+```bash
+cd /path/to/IsaacLab-Arena
+./docker/run_docker.sh
+```
 
-to fetch all dependencies (and put them in a local folder `node_modules`), lint the code and write the bundled and minified script into `assets/js/hydejack.js`.
+Inside the container, run the policy evaluation with GUI:
 
-You can re-build it with
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+   --viz kit \
+   --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
+   --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_static_apple_gr00t_closedloop_config.yaml \
+   --remote_host localhost --remote_port 5555 \
+   --num_steps 600 \
+   --enable_cameras \
+   galileo_g1_static_pick_and_place \
+   --object apple_01_objaverse_robolab \
+   --destination clay_plates_hot3d_robolab \
+   --embodiment g1_wbc_agile_joint
+```
 
-~~~bash
-$ npm run build:js
-~~~
+The Isaac Sim GUI will appear showing the G1 robot in the Galileo lab scene. The GR00T policy controls the robot to pick the apple and place it on the plate.
 
-If you want to actively develop the scripts, it is better to run
+Expected console output at the end of the evaluation:
 
-~~~bash
-$ npm run watch:js
-~~~
+```
+[Rank 0/1] Metrics: {'success_rate': 1.0, 'object_moved_rate': 1.0, 'num_episodes': 1}
+```
 
-which will build a non-minified version of `assets/js/hydejack.js` after each filechange.
+### 5.5 Running headless (no GUI)
 
+Replace `--viz kit` with `--viz headless`:
 
-*[FLIP]: First Last Invert Play
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+   --viz headless \
+   --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
+   --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_static_apple_gr00t_closedloop_config.yaml \
+   --remote_host localhost --remote_port 5555 \
+   --num_steps 600 \
+   --enable_cameras \
+   galileo_g1_static_pick_and_place \
+   --object apple_01_objaverse_robolab \
+   --destination clay_plates_hot3d_robolab \
+   --embodiment g1_wbc_agile_joint
+```
+
+### 5.6 Running with parallel environments
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+   --viz kit \
+   --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
+   --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_static_apple_gr00t_closedloop_config.yaml \
+   --remote_host localhost --remote_port 5555 \
+   --num_steps 600 \
+   --num_envs 5 \
+   --enable_cameras \
+   galileo_g1_static_pick_and_place \
+   --object apple_01_objaverse_robolab \
+   --destination clay_plates_hot3d_robolab \
+   --embodiment g1_wbc_agile_joint
+```
+
+### 5.7 Cleanup
+
+Stop and remove the GR00T server container:
+
+```bash
+docker stop gr00t-server && docker rm gr00t-server
+```
+
+Exit the Arena container by typing `exit`.
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| `ConnectionError: Cannot reach GR00T policy server` | Server not ready yet | Wait for `Server Ready` in server logs. Check `docker logs gr00t-server`. |
+| `ValueError: Invalid action shape, expected: 23, received: 50.` | Client uses wrong embodiment | Ensure `--embodiment g1_wbc_agile_joint` (not `_pink`). |
+| `FileNotFoundError: Model path ... does not exist` | Model volume mount path mismatch | Check `-v` mount matches `--model-path` inside container. |
+| Apple falls through shelf on first run | Collision mesh cache not ready | Re-run the command once (cached in `/tmp/Assets/`). |
+| Kit permission errors on `/isaac-sim/kit/data/` | Stale state from previous run | Rebuild the Arena image or start from a clean container. |
