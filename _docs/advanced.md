@@ -7,6 +7,10 @@ hide_description: true
 ---
 
 This chapter covers advanced topics, such as offline support and custom JS builds. Codings skills are recommended.
+
+
+# Setup Guide — Isaac Lab-Arena (Docker)
+
 ## Prerequisites
 
 - Linux (Ubuntu 22.04+)
@@ -236,3 +240,250 @@ conda deactivate
 | `shape mismatch: [50, 50] cannot be broadcast to [1, 40, 50]` | Action horizon mismatch between server modality config and client YAML | Ensure server uses `g1_sim_wbc_data_config.py` (horizon 50) and client uses `g1_locomanip_gr00t_closedloop_config.yaml` (horizon 50) |
 | `ConnectionError: Cannot reach GR00T policy server` | Server not ready yet | Wait for `Server Ready` in server logs |
 | GUI shows empty grid / assets not loading | First-time Omniverse asset download in progress | Wait 5-10 minutes; assets cache to `/tmp/Assets/` for next time |
+
+---
+
+## 6. GR00T DROID Pick-and-Place Demo (table-top, simpler)
+
+This demo runs a **pre-trained GR00T N1.6-DROID** foundation model (no fine-tuning, no checkpoint download) to control a DROID robot (Franka arm + Robotiq gripper) that picks a Rubik's cube off a maple table and places it into a bowl. It reuses the same server-client architecture as Section 5, but uses a different model and a much simpler single-robot table-top environment.
+
+- **Terminal 1 (GR00T Server, host)**: Loads `nvidia/GR00T-N1.6-DROID` and serves inference over ZeroMQ on port 5555. Weights fetch automatically from HuggingFace on first launch.
+- **Terminal 2 (Arena Client, Docker container)**: Runs Isaac Sim with the `pick_and_place_maple_table` environment and renders the GUI via `--viz kit`.
+
+### Requirements
+
+Same as Section 5 (conda env `gr00t_server` already set up in 5.1).
+
+> **Note:** The server can only run one model at a time on port 5555. If you previously ran the Section 5 G1 server, stop it (Ctrl+C) before starting the DROID server below.
+
+### 6.1 Start the GR00T server (Terminal 1, host)
+
+```bash
+cd submodules/Isaac-GR00T
+conda activate gr00t_server
+
+python gr00t/eval/run_gr00t_server.py \
+    --model-path nvidia/GR00T-N1.6-DROID \
+    --embodiment-tag OXE_DROID \
+    --device cuda \
+    --host 0.0.0.0 \
+    --port 5555
+```
+
+Wait for: `Server Ready and listening on 0.0.0.0:5555`
+
+GR00T N1.6-DROID ships with its own modality config (action horizon 32), so `--modality-config-path` is omitted. The first launch downloads the model weights from HuggingFace (~several GB) and caches them locally.
+
+### 6.2 Optional sanity check: zero-action (Terminal 2, container)
+
+Verifies the environment loads before running the real policy:
+
+```bash
+cd /path/to/IsaacLab-Arena
+./docker/run_docker.sh
+```
+
+Inside the container:
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+  --viz kit --policy_type zero_action --num_steps 50 \
+  pick_and_place_maple_table \
+  --embodiment droid_abs_joint_pos \
+  --pick_up_object rubiks_cube_hot3d_robolab \
+  --destination_location bowl_ycb_robolab \
+  --hdr home_office_robolab
+```
+
+> **First run**: The scene assets (maple table, DROID robot, Rubik's cube, bowl, HDR) download from Omniverse on first launch — a few minutes with `[omni.client.python] Detected a blocking function` warnings. This is normal.
+
+### 6.3 Run the GR00T closed-loop demo (Terminal 2, container)
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+  --viz kit \
+  --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
+  --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/droid_manip_gr00t_closedloop_config.yaml \
+  --remote_host 127.0.0.1 --remote_port 5555 \
+  --language_instruction "Pick up the Rubik's cube and place it in the bowl." \
+  --enable_cameras \
+  --num_episodes 3 \
+  pick_and_place_maple_table \
+  --embodiment droid_abs_joint_pos \
+  --pick_up_object rubiks_cube_hot3d_robolab \
+  --destination_location bowl_ycb_robolab \
+  --hdr home_office_robolab
+```
+
+Key differences from the G1 demo in Section 5:
+
+- Uses `droid_manip_gr00t_closedloop_config.yaml` (OXE_DROID embodiment, action horizon 32).
+- Uses `--num_episodes 3` instead of `--num_steps`, so the run terminates when episodes complete rather than after a fixed step count.
+- `--language_instruction` sets the natural-language instruction sent to the model.
+- `--embodiment droid_abs_joint_pos` — N1.6-DROID's default modality config uses absolute joint positions (not `droid_rel_joint_pos`).
+- `--enable_cameras` is required — GR00T needs camera observations.
+
+After each episode Arena prints whether the pick-and-place succeeded. The pre-trained model is zero-shot, so expect a low success rate — the point is to demo the closed-loop pipeline.
+
+### 6.4 Running headless (no GUI)
+
+Replace `--viz kit` with `--viz headless`:
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+  --viz headless \
+  --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
+  --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/droid_manip_gr00t_closedloop_config.yaml \
+  --remote_host 127.0.0.1 --remote_port 5555 \
+  --language_instruction "Pick up the Rubik's cube and place it in the bowl." \
+  --enable_cameras \
+  --num_episodes 3 \
+  pick_and_place_maple_table \
+  --embodiment droid_abs_joint_pos \
+  --pick_up_object rubiks_cube_hot3d_robolab \
+  --destination_location bowl_ycb_robolab \
+  --hdr home_office_robolab
+```
+
+### 6.5 Optional: batch evaluation across variations
+
+Runs nine jobs sequentially — each varying the object, background HDR, and destination — within a single Isaac Sim process, reporting per-job success rates:
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/experiment_runner.py \
+  --viz kit \
+  --eval_jobs_config isaaclab_arena_environments/eval_jobs_configs/droid_pnp_srl_gr00t_jobs_config.json
+```
+
+### 6.6 Swap objects, backgrounds, and destinations
+
+From the baseline command, swap any of:
+
+- `--pick_up_object` — e.g. `mustard_bottle_hot3d_robolab`, `mug_hot3d_robolab`, `soup_can_hot3d_robolab`, `tomato_soup_can_ycb_robolab`
+- `--destination_location` — `bowl_ycb_robolab`, `wooden_bowl_hot3d_robolab`
+- `--hdr` — e.g. `billiard_hall_robolab`, `empty_warehouse_robolab`, `garage_robolab`
+- `--light_intensity` — dome light brightness
+
+### 6.7 Cleanup
+
+```bash
+# Terminal 1: Stop the server (Ctrl+C)
+conda deactivate
+
+# Terminal 2: Exit the container (type 'exit')
+```
+
+---
+
+## 7. OpenPi pi05 Pick-and-Place Demo (recommended for `pick_and_place_maple_table`)
+
+The GR00T N1.6-DROID model in Section 6 is zero-shot on the maple-table task and often fails to pick the cube. **OpenPi pi05** (Physical Intelligence, fine-tuned on DROID) is the recommended alternative — it succeeds on most `pick_and_place_maple_table` variations out of the box (docs report 1.0 success rate on 8/9 variations).
+
+It reuses the same server-client architecture, but replaces the GR00T server with an **openpi inference server** over WebSocket:
+
+- **Terminal 1 (OpenPi Server, host)**: Runs `pi05` (or `pi0`) in a self-contained Docker image, serving inference on port 8000.
+- **Terminal 2 (Arena Client, Docker container)**: Runs Isaac Sim with the `pick_and_place_maple_table` environment and sends observations / receives actions over WebSocket.
+
+### Requirements
+
+- All [prerequisites](#prerequisites) satisfied
+- ~30 GB free disk space (19 GB image + 11 GB checkpoint) and ~24 GB free VRAM on a single GPU
+
+> **Note:** pi05 is a JAX model needing ~15-20 GB of VRAM. The `run_openpi_server.sh` script pins the server to **GPU 0** (`--gpus '"device=0"'`). If your primary GPU is not index 0 (e.g. you have a small secondary card), edit that flag to select the correct device.
+
+### 7.1 Start the OpenPi server (Terminal 1, host)
+
+```bash
+./isaaclab_arena_openpi/docker/run_openpi_server.sh
+```
+
+- **First invocation** builds the `isaaclab_arena_openpi-server` Docker image (~3 min, ~19 GB), then downloads the ~11 GB pi05 checkpoint into the container.
+- **Subsequent runs** reuse the cached image and checkpoint.
+- `-v pi0` serves the smaller pi0 variant instead of pi05; `-r` forces a rebuild.
+
+Wait for:
+
+```
+INFO:websockets.server:server listening on 0.0.0.0:8000
+```
+
+Leave the terminal running.
+
+### 7.2 Optional sanity check: zero-action (Terminal 2, container)
+
+Same as Section 6.2 — verifies the environment loads before running the real policy:
+
+```bash
+cd /path/to/IsaacLab-Arena
+./docker/run_docker.sh
+```
+
+Inside the container:
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+  --viz kit --policy_type zero_action --num_steps 50 \
+  pick_and_place_maple_table \
+  --embodiment droid_abs_joint_pos \
+  --pick_up_object rubiks_cube_hot3d_robolab \
+  --destination_location bowl_ycb_robolab \
+  --hdr home_office_robolab
+```
+
+> **First run**: The scene assets (maple table, DROID robot, Rubik's cube, bowl, HDR) download from Omniverse on first launch — a few minutes with `[omni.client.python] Detected a blocking function` warnings. This is normal.
+
+### 7.3 Run the pi05 closed-loop demo (Terminal 2, container)
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/policy_runner.py \
+  --viz kit \
+  --policy_type isaaclab_arena_openpi.policy.pi0_remote_policy.Pi0RemotePolicy \
+  --num_episodes 3 \
+  --enable_cameras --num_envs 1 \
+  --language_instruction "Pick up the Rubik's cube and place it in the bowl." \
+  pick_and_place_maple_table \
+    --embodiment droid_abs_joint_pos \
+    --pick_up_object rubiks_cube_hot3d_robolab \
+    --destination_location bowl_ycb_robolab \
+    --hdr home_office_robolab
+```
+
+Defaults: `--openpi_embodiment_adapter droid`, `--policy_variant pi05`, `--remote_host localhost`, `--remote_port 8000`. Pass `--remote_host` only if the server is on a different machine.
+
+The Arena Kit window will show the DROID arm picking the Rubik's cube and placing it in the bowl. pi05 succeeds on most variations zero-shot.
+
+### 7.4 Supported variants
+
+| `--policy_variant` | Model | Checkpoint | Pair with `--embodiment` |
+|--------------------|-------|------------|--------------------------|
+| `pi05` (default)   | `pi05_droid_jointpos_polaris` | `gs://openpi-assets-simeval/pi05_droid_jointpos` | `droid_abs_joint_pos` |
+| `pi0`              | `pi0_droid_jointpos_polaris`  | `gs://openpi-assets-simeval/pi0_droid_jointpos`  | `droid_abs_joint_pos` |
+
+Serve `pi0` by running `./isaaclab_arena_openpi/docker/run_openpi_server.sh -v pi0`.
+
+### 7.5 Optional: batch evaluation across variations
+
+Runs nine jobs sequentially — each varying the object, background HDR, and destination — within a single Isaac Sim process, reporting per-job success rates:
+
+```bash
+/isaac-sim/python.sh isaaclab_arena/evaluation/experiment_runner.py \
+  --viz kit \
+  --enable_cameras \
+  --experiment_config isaaclab_arena_environments/experiment_configs/droid_pnp_srl_openpi_experiment.yaml
+```
+
+> The experiment config adds cameras to each environment, while `--enable_cameras` enables camera support in Isaac Sim before the experiment is loaded — both are required.
+
+### 7.6 Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|------|
+| `jaxlib.xla_extension.XlaRuntimeError: RESOURCE_EXHAUSTED: Out of memory while trying to allocate ...` | JAX placed the model on a GPU that is too small (e.g. an 8 GB secondary card) | Pin the server to your large GPU: edit `run_openpi_server.sh`'s `--gpus '"device=0"'` to the correct index |
+| `ConnectionRefusedError` from the Arena client | Server not ready or port mismatch | Wait for `server listening on 0.0.0.0:8000`; confirm `--remote_port 8000` |
+
+### 7.7 Cleanup
+
+```bash
+# Terminal 1: Stop the server (Ctrl+C)
+# Terminal 2: Exit the container (type 'exit')
+```
