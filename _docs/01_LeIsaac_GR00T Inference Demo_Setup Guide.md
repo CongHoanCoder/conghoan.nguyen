@@ -52,6 +52,15 @@ A comprehensive guide to setting up a two-environment system for running policy 
   </tr>
 </table>
 
+# LeIsaac + GR00T Inference Demo — Setup Guide
+
+A comprehensive guide to setting up a two-environment system for running policy inference in IsaacLab using a GR00T N1.5 model served via a separate inference service.
+
+---
+
+
+
+
 
 ### Teacher-Student Recording Mode
 
@@ -386,7 +395,7 @@ python scripts/datagen/state_machine/teacher_generate.py \
 
 | Argument | Description |
 |----------|-------------|
-| `--num_demos` | Number of **successful** episodes to collect (0 for infinite) |
+| `--num_demos` | Number of **successful** episodes to collect this run, excluding any resumed demos (0 for infinite) |
 | `--dataset_file` | Output path for recorded HDF5 (default: `./datasets/teacher_demos.hdf5`) |
 | `--record` | Enable recording (required) |
 | `--resume` | Resume appending to an existing dataset |
@@ -394,6 +403,22 @@ python scripts/datagen/state_machine/teacher_generate.py \
 | `--lerobot_dataset_repo_id` | HuggingFace repo ID (required with `--use_lerobot_recorder`) |
 
 The recorder captures observations and actions automatically on every `env.step()`. Only **successful** episodes (where the task is completed) are saved; failed/timeout episodes are discarded.
+
+### What Gets Recorded in Each Episode
+
+Each saved episode is a sequence of **frames** (one per simulation step, after skipping the first 5 frames to avoid unstable initial states), using the standard LeRobot schema:
+
+| Feature | Content | Shape / Type |
+|---------|---------|--------------|
+| `observation.state` | Robot joint positions (`joint_pos`), converted to LeRobot motor space | `float32`, `(6,)` — 5 arm joints + 1 gripper |
+| `action` | The action executed at that step, converted to motor space | `float32`, `(6,)` |
+| `observation.images.front` | RGB image from the front camera | video, 480×640×3 @ dataset FPS |
+| `observation.images.wrist` | RGB image from the wrist camera | video, 480×640×3 @ dataset FPS |
+| `task` | The language instruction (`task_description`) | string |
+
+LeRobot also auto-adds `timestamp`, `frame_index`, and `episode_index` to every frame. The frame rate is set by `--lerobot_dataset_fps` (default 30). Camera streams are encoded to MP4 (e.g. AV1), and joint states/actions are stored in parquet files under `data/`.
+
+> **Note:** Only joint positions are recorded in `observation.state` — no joint velocities, end-effector pose, or subtask terms. The recorded demos are otherwise identical for all student models (Diffusion, ACT, Pi0, SmolVLA).
 
 ### Step 3 — Convert to LeRobot Format
 
