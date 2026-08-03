@@ -6,6 +6,9 @@ description: >
 video: https://www.youtube.com/watch?v=ueSmN_VxNPg&list=PLlqdnFs9xNwql5KET7v7zyl393y10qxtw&index=4
 hide_description: true
 ---
+This chapter covers how to build a VLA model for robotics from scratch.
+
+
 # Building a Vision-Language-Action Model from Scratch
 
 **Understand VLAs and how to build one yourself**
@@ -14,11 +17,15 @@ VLAs have fascinated me ever since I first encountered them in a Reinforcement L
 
 A clear architectural pattern appears across all of them.
 
+---
+
 ## Why VLAs Matter Right Now
 
 VLAs deliver generalization. Before RT-2, robots relied on what Google DeepMind called “complex stacks of systems” engaged in an “imperfect game of telephone.” VLAs collapse that fragmentation: a single model can perceive, reason, and act.
 
 Multimodality is what bridges reasoning to control. By treating vision, language, and action as tokens in one unified sequence, VLAs solve the grounding problem. Visual encoders turn camera images into patch embeddings, projection layers map those embeddings into the language model’s space, and the LLM then generates action tokens from the fused representation. A minimal version of this same idea is what I call mini-VLA.
+
+---
 
 ## The Generalist Robot Idea
 
@@ -27,6 +34,8 @@ Physical Intelligence put it well in October 2024: just as large language models
 That vision is what pulled me into the space—“ChatGPT for the physical world!”—only to discover it is far harder than it sounds.
 
 Still, the foundations are solid. The Open X-Embodiment dataset (October 2023) gave the community more than a million real-robot trajectories across 22 embodiments—the ImageNet of robot learning. OpenVLA (June 2024) showed that a 7 B model could outperform the 55 B RT-2-X. And π₀ (October 2024) became the first system to successfully fold laundry, make coffee, assemble boxes, and bus tables—tasks no earlier robot learning system had mastered.
+
+---
 
 ## How Do You Build Your Own VLA?
 
