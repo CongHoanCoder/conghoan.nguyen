@@ -6,8 +6,8 @@ description: >
 video: https://www.youtube.com/watch?v=ueSmN_VxNPg&list=PLlqdnFs9xNwql5KET7v7zyl393y10qxtw&index=4
 hide_description: true
 ---
+# Building a Vision-Language-Action Model from Scratch
 
-# Build a Vision-Language-Action Model from Scratch
 **Understand VLAs and how to build one yourself**
 
 VLAs have fascinated me ever since I first encountered them in a Reinforcement Learning course. That curiosity led me to dig into papers like RT-2, OpenVLA, π₀ (and its follow-ups), GR00T, and many others throughout the year.
@@ -40,6 +40,8 @@ It consists of four main pieces:
 2. A **vision-language projector** that maps those embeddings into the LLM’s representation space  
 3. A **language-model backbone** that processes the fused tokens together with text instructions  
 4. An **action head** that converts the model’s outputs into executable robot commands  
+
+![VLA pipeline overview](https://substack-post-media.s3.amazonaws.com/public/images/18754e1d-1ffc-4a01-8b44-6192b95782fa_1152x648.gif)
 
 ## mini-VLA: A Lightweight Version
 
@@ -78,9 +80,13 @@ The high-level flow is:
 
 On a tight compute budget we skip large ResNets or Vision Transformers and use a tiny CNN. It compresses the full image into a compact “gist” that still roughly locates the robot hand and the object.
 
+![Image encoder](https://substack-post-media.s3.amazonaws.com/public/images/dd2e6d4e-d03f-4eb3-9c9d-416dc58919b3_1152x648.gif)
+
 #### Reading — Text Encoder
 
 We keep only the final hidden state of a lightweight text encoder. That single 128-dimensional vector summarizes the instruction (“push the object to the goal”). No heavy transformers—clarity and minimalism come first.
+
+![push the object to the goal](https://substack-post-media.s3.amazonaws.com/public/images/a570906b-62dc-45a8-9e47-7845919f4c13_320x320.gif)
 
 #### Feeling — State Encoder
 
@@ -90,6 +96,8 @@ The simulator already supplies a state vector. A small MLP with LayerNorm turns 
 
 Fusion creates one unified representation of what the model sees, what it is told, and what the robot knows. Think of it as a short meeting where vision, language, and state each give a quick report and an MLP writes the summary. You could replace this step with attention or a transformer; the rest of the pipeline only cares that it receives a single `(B, d_model)` token.
 
+![Fusion](https://substack-post-media.s3.amazonaws.com/public/images/54239dfc-a04d-4d97-890d-1e4736a91b46_480x276.gif)
+
 #### Acting via Diffusion
 
 This is the policy head. During training we add noise to the expert action; the model learns to reverse that noise, guided by the fused image + text + state context. At inference we start from pure noise and iteratively denoise until we obtain a plausible action. It is a standard DDPM-style process in action space: the forward diffusion follows  
@@ -97,6 +105,10 @@ This is the policy head. During training we add noise to the expert action; the 
 \[ x_t = \sqrt{\bar{\alpha}_t}\,x_0 + \sqrt{1-\bar{\alpha}_t}\,\varepsilon \]  
 
 and the denoiser is a simple MLP conditioned on timestep and the fused context.
+
+![Diffusion / action head](https://substack-post-media.s3.amazonaws.com/public/images/96e73e08-242f-4e5c-b208-a0a35f378428_1152x648.gif)
+
+![Diffusion process](https://substack-post-media.s3.amazonaws.com/public/images/1b365031-ce63-4ddf-80a6-cc9a48e3b9bd_1152x648.gif)
 
 ### Design Philosophy
 
