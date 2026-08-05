@@ -2,14 +2,13 @@
 layout: doc
 title: Scripts
 description: >
-  There are two ways of adding third party scripts.
-  Embedding is ideal for one-off scripts, while global scripts are loaded on every page.
+  A beginner's introduction to Gazebo as a physics simulator before touching ROS2.
+  You'll build a single wheel, configure it, and push it around **using only the GUI — zero code**.
 hide_description: true
 ---
 
 A beginner's introduction to Gazebo as a physics simulator before touching ROS2.
-You'll build a single wheel, configure it, and push it around **using only the GUI —
-zero code**.
+You'll build a single wheel, configure it, and push it around **using only the GUI — zero code**.
 
 # Phase 0 — Drive a Simple Wheel in Gazebo (No Code)
 
