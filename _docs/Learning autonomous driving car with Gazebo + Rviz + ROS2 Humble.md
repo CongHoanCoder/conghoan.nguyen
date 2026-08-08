@@ -1,12 +1,11 @@
 ---
 layout: doc
-title: Learning autonomous driving car with Gazebo + Rviz + ROS2 Humble
+title: 🤖 Learning autonomous driving car with Gazebo + Rviz + ROS2 Humble
 description: >
   Learn how to spawn a 2-wheel robot car in **Gazebo Classic** and control it — first with the keyboard, then autonomously with a PID heading controller, while adding safety and vision along the way.
 hide_description: true
 ---
 
-## 🤖 ros2_robotic
 
 > A hands-on ROS2 (Humble) learning repo to build a **manual & autonomous control car**, step by step.
 
