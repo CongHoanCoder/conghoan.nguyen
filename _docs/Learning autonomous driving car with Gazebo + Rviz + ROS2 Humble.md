@@ -6,7 +6,7 @@ description: >
 hide_description: true
 ---
 
-# 🤖 ros2_robotic
+## 🤖 ros2_robotic
 
 > A hands-on ROS2 (Humble) learning repo to build a **manual & autonomous control car**, step by step.
 
